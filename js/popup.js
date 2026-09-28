@@ -196,8 +196,9 @@ function displayResults(data) {
   
   // Update pills
   const pill = document.getElementById('riskpill');
-  const label = score >= 75 ? 'High risk' : (score >= 40 ? 'Medium risk' : 'Low risk');
-  const pillClass = score >= 75 ? 'high' : (score >= 40 ? 'med' : 'low');
+  const hasScore = typeof score === 'number' && Number.isFinite(score);
+  const label = !hasScore ? 'Analysis unavailable' : score >= 75 ? 'High risk' : (score >= 40 ? 'Medium risk' : 'Low risk');
+  const pillClass = !hasScore ? 'unknown' : score >= 75 ? 'high' : (score >= 40 ? 'med' : 'low');
   pill.className = `pill ${pillClass}`;
   pill.textContent = label;
   
