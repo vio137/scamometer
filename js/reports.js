@@ -69,7 +69,7 @@ async function loadReports() {
         type: 'single',
         url: key.replace('analysis::', ''),
         result: value,
-        timestamp: value.timestamp || Date.now()
+        timestamp: value.when || value.timestamp || Date.now()
       });
     }
   }
