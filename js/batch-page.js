@@ -1399,7 +1399,7 @@ function generateInteractiveReport() {
       <p>AI-Powered Phishing & Scam Detector with Advanced Threat Classification</p>
       <p style="margin-top:12px; font-size:12px;">
         Built by Arnab Mandal | 
-        <a href="https://github.com/arnabmx/scamometer" target="_blank">GitHub</a> | 
+        <a href="https://github.com/vio137/scamometer" target="_blank">GitHub</a> |
         <a href="mailto:hello@arnabmandal.com">Contact</a>
       </p>
     </div>

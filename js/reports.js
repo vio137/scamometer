@@ -84,7 +84,8 @@ function updateStats() {
   let low = 0, medium = 0, high = 0;
   
   allReports.forEach(report => {
-    const score = report.result?.ai?.scamometer || 0;
+    const score = report.result?.ai?.scamometer;
+    if (typeof score !== 'number') return;
     if (score < 30) low++;
     else if (score < 70) medium++;
     else high++;
@@ -117,7 +118,8 @@ function filterReports() {
     if (currentFilter === 'single' && report.type !== 'single') return false;
     
     // Risk filter
-    const score = report.result?.ai?.scamometer || 0;
+    const score = report.result?.ai?.scamometer;
+    if (typeof score !== 'number') return !['low', 'medium', 'high'].includes(currentFilter);
     if (currentFilter === 'low' && score >= 30) return false;
     if (currentFilter === 'medium' && (score < 30 || score >= 70)) return false;
     if (currentFilter === 'high' && score < 70) return false;
@@ -142,12 +144,14 @@ function renderReports() {
   
   // Simple clean UI: Just URL and score with gradient
   grid.innerHTML = filteredReports.map((report, index) => {
-    const score = report.result?.ai?.scamometer || 0;
-    const riskLevel = score < 30 ? 'low' : score < 70 ? 'medium' : 'high';
+    const score = report.result?.ai?.scamometer;
+    const riskLevel = typeof score !== 'number' ? 'unknown' : score < 30 ? 'low' : score < 70 ? 'medium' : 'high';
     
     // Calculate gradient based on score (green to yellow to red)
     let gradientColor;
-    if (score < 30) {
+    if (typeof score !== "number") {
+      gradientColor = `linear-gradient(90deg, rgba(100,116,139,.3), rgba(100,116,139,.1))`;
+    } else if (score < 30) {
       // Green for low risk
       gradientColor = `linear-gradient(90deg, rgba(22, 163, 74, 0.3), rgba(22, 163, 74, 0.1))`;
     } else if (score < 70) {
@@ -159,10 +163,10 @@ function renderReports() {
     }
     
     return `
-      <div class="result-card" style="background: ${gradientColor}; border-left: 4px solid ${riskLevel === 'low' ? 'var(--green)' : riskLevel === 'medium' ? 'var(--yellow)' : 'var(--red)'};">
+      <div class="result-card" style="background: ${gradientColor}; border-left: 4px solid ${riskLevel === 'low' ? 'var(--green)' : riskLevel === 'medium' ? 'var(--yellow)' : riskLevel === 'unknown' ? '#64748b' : 'var(--red)'};">
         <div class="result-header">
           <div class="result-url">${escapeHtml(report.url)}</div>
-          <div class="score-badge ${riskLevel}">${Math.round(score)}/100</div>
+          <div class="score-badge ${riskLevel}">${typeof score === 'number' ? `${Math.round(score)}/100` : 'Unavailable'}</div>
         </div>
       </div>
     `;
@@ -280,12 +284,12 @@ function showToast(message, isError = false) {
 }
 
 function generateDetailedView(report) {
-  const score = report.result?.score || 0;
-  const riskLevel = score < 30 ? 'low' : score < 70 ? 'medium' : 'high';
-  const verdict = report.result?.verdict || 'Unknown';
-  const reason = report.result?.reason || 'No reason provided';
-  const positives = report.result?.positiveIndicators || [];
-  const negatives = report.result?.redFlags || [];
+  const score = report.result?.ai?.scamometer ?? report.result?.score ?? null;
+  const riskLevel = typeof score !== 'number' ? 'unknown' : score < 30 ? 'low' : score < 70 ? 'medium' : 'high';
+  const verdict = report.result?.ai?.verdict || report.result?.verdict || 'Unknown';
+  const reason = report.result?.ai?.reason || report.result?.reason || 'No reason provided';
+  const positives = report.result?.ai?.positives || report.result?.positiveIndicators || [];
+  const negatives = report.result?.ai?.negatives || report.result?.redFlags || [];
   const date = new Date(report.timestamp).toLocaleString();
   
   let screenshotHtml = '';
@@ -293,14 +297,14 @@ function generateDetailedView(report) {
     screenshotHtml = `
       <div style="margin-top: 24px;">
         <h2 style="color: #06b6d4; margin-bottom: 12px;">📸 Screenshot</h2>
-        <img src="${report.screenshot.dataUrl}" style="max-width: 100%; border: 1px solid #1f2937; border-radius: 8px;">
+        <img src="${escapeHtml(report.screenshot.dataUrl)}" style="max-width: 100%; border: 1px solid #1f2937; border-radius: 8px;">
       </div>
     `;
   } else if (report.screenshot && report.screenshot.filename) {
     screenshotHtml = `
       <div style="margin-top: 24px;">
         <h2 style="color: #06b6d4; margin-bottom: 12px;">📸 Screenshot</h2>
-        <img src="./${report.screenshot.filename}" style="max-width: 100%; border: 1px solid #1f2937; border-radius: 8px;"
+        <img src="./${escapeHtml(report.screenshot.filename)}" style="max-width: 100%; border: 1px solid #1f2937; border-radius: 8px;"
              onerror="this.parentElement.innerHTML='<p style=\\'padding:20px;text-align:center;color:#999;\\'>Screenshot not found.</p>'">
         <p style="color: #94a3b8; font-size: 12px; margin-top: 8px;">Note: Screenshot uses relative path. Make sure this window was opened from the reports dashboard.</p>
       </div>
@@ -369,7 +373,7 @@ function generateDetailedView(report) {
       <h1>${escapeHtml(report.url)}</h1>
       <div class="meta">Analyzed on ${date} • Type: ${report.type === 'batch' ? 'Batch Processing' : 'Single Scan'}</div>
       
-      <div class="score-big ${riskLevel}">${score} / 100</div>
+      <div class="score-big ${riskLevel}">${score === null ? 'Unavailable' : `${score} / 100`}</div>
       
       <div class="verdict">${escapeHtml(verdict)}</div>
       <div class="reason">${escapeHtml(reason)}</div>
@@ -420,13 +424,13 @@ window.downloadHtml = async function(index) {
 };
 
 async function generateDownloadableHtml(report) {
-  const score = report.result?.score || 0;
-  const riskLevel = score < 30 ? 'low' : score < 70 ? 'medium' : 'high';
-  const riskColor = riskLevel === 'low' ? '#16a34a' : riskLevel === 'medium' ? '#eab308' : '#dc2626';
-  const verdict = report.result?.verdict || 'Unknown';
-  const reason = report.result?.reason || 'No reason provided';
-  const positives = report.result?.positiveIndicators || [];
-  const negatives = report.result?.redFlags || [];
+  const score = report.result?.ai?.scamometer ?? report.result?.score ?? null;
+  const riskLevel = typeof score !== 'number' ? 'unknown' : score < 30 ? 'low' : score < 70 ? 'medium' : 'high';
+  const riskColor = riskLevel === 'unknown' ? '#64748b' : riskLevel === 'low' ? '#16a34a' : riskLevel === 'medium' ? '#eab308' : '#dc2626';
+  const verdict = report.result?.ai?.verdict || report.result?.verdict || 'Unknown';
+  const reason = report.result?.ai?.reason || report.result?.reason || 'No reason provided';
+  const positives = report.result?.ai?.positives || report.result?.positiveIndicators || [];
+  const negatives = report.result?.ai?.negatives || report.result?.redFlags || [];
   const date = new Date(report.timestamp).toLocaleString();
   
   // Use relative path for screenshot if available
@@ -436,7 +440,7 @@ async function generateDownloadableHtml(report) {
       <div class="section">
         <h2>📸 Screenshot</h2>
         <div class="screenshot-container">
-          <img src="./${report.screenshot.filename}" alt="Page Screenshot" class="screenshot" 
+          <img src="./${escapeHtml(report.screenshot.filename)}" alt="Page Screenshot" class="screenshot"
                onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
           <div class="screenshot-error" style="display:none;">
             Screenshot file not found. Make sure this HTML file is in the same folder as the screenshots.
@@ -605,11 +609,11 @@ async function generateDownloadableHtml(report) {
   <div class="container">
     <header>
       <h1>${escapeHtml(report.url)}</h1>
-      <div class="meta">Report Generated: ${date} | Source: Scamometer v3.0</div>
+      <div class="meta">Report Generated: ${date} | Source: Scamometer v4.1</div>
     </header>
     
     <div class="score-section">
-      <div class="score-big">${score}/100</div>
+      <div class="score-big">${score === null ? 'Unavailable' : `${score}/100`}</div>
       <div class="verdict">${escapeHtml(verdict)}</div>
       <div class="reason">${escapeHtml(reason)}</div>
     </div>
@@ -637,7 +641,7 @@ async function generateDownloadableHtml(report) {
     
     <footer>
       Generated by <strong>Scamometer</strong> Chrome Extension<br>
-      Built by Arnab Mandal — <a href="https://github.com/arnabmx/scamometer" style="color: #06b6d4;">GitHub</a>
+      Built by Arnab Mandal — <a href="https://github.com/vio137/scamometer" style="color: #06b6d4;">GitHub</a>
     </footer>
   </div>
   
@@ -725,25 +729,26 @@ async function generateBulkHtml(reports) {
   let low = 0, medium = 0, high = 0;
   
   reports.forEach(report => {
-    const score = report.result?.score || 0;
+    const score = report.result?.ai?.scamometer ?? report.result?.score ?? null;
+    if (typeof score !== "number") return;
     if (score < 30) low++;
     else if (score < 70) medium++;
     else high++;
   });
   
   const reportsHtml = reports.map((report, index) => {
-    const score = report.result?.score || 0;
-    const riskLevel = score < 30 ? 'low' : score < 70 ? 'medium' : 'high';
-    const riskColor = riskLevel === 'low' ? '#16a34a' : riskLevel === 'medium' ? '#eab308' : '#dc2626';
-    const verdict = report.result?.verdict || 'Unknown';
-    const positives = report.result?.positiveIndicators || [];
-    const negatives = report.result?.redFlags || [];
+    const score = report.result?.ai?.scamometer ?? report.result?.score ?? null;
+    const riskLevel = typeof score !== 'number' ? 'unknown' : score < 30 ? 'low' : score < 70 ? 'medium' : 'high';
+    const riskColor = riskLevel === 'unknown' ? '#64748b' : riskLevel === 'low' ? '#16a34a' : riskLevel === 'medium' ? '#eab308' : '#dc2626';
+    const verdict = report.result?.ai?.verdict || report.result?.verdict || 'Unknown';
+    const positives = report.result?.ai?.positives || report.result?.positiveIndicators || [];
+    const negatives = report.result?.ai?.negatives || report.result?.redFlags || [];
     
     return `
       <div class="report-card">
         <div class="report-header">
           <h3>${escapeHtml(report.url)}</h3>
-          <div class="score-badge" style="background: ${riskColor};">${score}/100</div>
+          <div class="score-badge" style="background: ${riskColor};">${score === null ? 'Unavailable' : `${score}/100`}</div>
         </div>
         <div class="report-verdict">${escapeHtml(verdict)}</div>
         <div class="report-meta">${new Date(report.timestamp).toLocaleString()} • ${report.type === 'batch' ? 'Batch' : 'Single'}</div>

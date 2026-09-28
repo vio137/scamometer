@@ -260,14 +260,14 @@
 
     <h2>Webhook Integration</h2>
     <div class="card">
-      <p class="muted">Configure webhook to receive batch processing results automatically. The extension will POST results to your endpoint when batch processing completes.</p>
+      <p class="muted">Optional: when enabled, Scamometer sends scan URLs, risk scores, reasons and optional screenshots to your HTTPS endpoint. Do not enable this for a destination you do not trust.</p>
       
       <div class="section">
         <label>
           <input type="checkbox" id="webhookEnabled" style="width:auto; margin-right:8px;">
           Enable Webhook Notifications
         </label>
-        <div class="help-text">Send POST requests with batch results to the configured URL</div>
+        <div class="help-text">Send individual and batch results only when enabled. URLs may contain personal information.</div>
       </div>
       
       <div class="section">

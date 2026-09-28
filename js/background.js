@@ -33,15 +33,15 @@ const rdapCache = {};
 // Generate storage key per URL
 function storageKey(url) {
   const u = new URL(url);
-  return `analysis::${u.origin}${u.pathname}`;
+  return `analysis::${u.origin}${u.pathname}${u.search}`;
 }
 
 // Listen for page loads to auto-run analysis
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete' || !tab.url) return;
+  if (changeInfo.status !== 'complete' || !tab.url || !/^https?:\/\//i.test(tab.url)) return;
   
   // Check if extension is enabled
-  const { enabled = true } = await chrome.storage.local.get({ enabled: true });
+  const { enabled = false } = await chrome.storage.local.get({ enabled: false });
   if (!enabled) {
     await setBadge({ text: '', color: '#6b7280' });
     return;
@@ -64,12 +64,16 @@ let batchTabId = null;
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     if (msg?.type === 'GET_ANALYSIS_FOR_URL') {
+      if (typeof msg.url !== 'string' || !/^https?:\/\//i.test(msg.url)) { sendResponse(null); return; }
       const key = storageKey(msg.url);
       const data = await chrome.storage.local.get(key);
       sendResponse(data[key] || null);
     }
     if (msg?.type === 'RUN_ANALYSIS') {
       try {
+        if (!Number.isInteger(msg.tabId) || typeof msg.url !== 'string') throw new Error('Invalid scan target');
+        const tab = await chrome.tabs.get(msg.tabId);
+        if (tab.url !== msg.url) throw new Error('Tab changed; try again');
         await runAnalysis(msg.tabId, msg.url, { reason: 'on_demand' });
         sendResponse({ ok: true });
       } catch (e) {
@@ -78,7 +82,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     if (msg?.type === 'START_BATCH') {
       try {
-        startBatchProcessing(msg.urls);
+        await startBatchProcessing(msg.urls);
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({ ok: false, error: e.message });
@@ -110,6 +114,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     if (msg?.type === 'CAPTURE_SCREENSHOT') {
       try {
+        if (!Number.isInteger(msg.tabId) || typeof msg.url !== 'string') throw new Error('Invalid capture target');
+        const tab = await chrome.tabs.get(msg.tabId);
+        if (tab.url !== msg.url) throw new Error('Tab changed; try again');
         const screenshot = await captureScreenshotWithOverlay(msg.tabId, msg.url);
         sendResponse({ ok: true, screenshot });
       } catch (e) {
@@ -631,6 +638,7 @@ async function callCustomSummarizer(config, systemPrompt, userPrompt) {
 
 // Main analysis flow with dual AI pipeline
 async function runAnalysis(tabId, url, { reason } = {}) {
+  if (!/^https?:\/\//i.test(url)) throw new Error('Only HTTP(S) pages can be analyzed');
   const config = await chrome.storage.local.get({ 
     // Model A (Summarizer) configuration
     modelA_provider: 'gemini',
@@ -809,7 +817,7 @@ async function runAnalysis(tabId, url, { reason } = {}) {
     console.error('Model B failed:', err);
     verdict = {
       verdict: 'Error',
-      scamometer: 0,
+      scamometer: null,
       reason: `Analysis failed: ${err.message}`,
       positives: [],
       negatives: ['Analysis error'],
@@ -837,10 +845,11 @@ async function runAnalysis(tabId, url, { reason } = {}) {
   await chrome.storage.local.set({ [key]: analysisResult });
 
   // Update badge with final score
-  await setBadgeForScore(verdict.scamometer);
+  if (verdict.scamometer === null) await setBadge({ text: 'ERR', color: '#6b7280' });
+  else await setBadgeForScore(verdict.scamometer);
 
   progress(tabId, 95, 'Applying overlay…');
-  await chrome.tabs.sendMessage(tabId, { type: 'OVERLAY', score: verdict.scamometer }).catch(()=>{});
+  if (verdict.scamometer !== null) await chrome.tabs.sendMessage(tabId, { type: 'OVERLAY', score: verdict.scamometer }).catch(()=>{});
   progress(tabId, 100, 'Done');
 
   // Notify popup (if open)
@@ -1481,6 +1490,10 @@ async function callCustomLLM(config, analysis) {
  * @param {Array<string>} urls - URLs to process
  */
 async function startBatchProcessing(urls) {
+  if (!Array.isArray(urls) || urls.length < 1 || urls.length > 100 ||
+      urls.some(url => typeof url !== 'string' || url.length > 2048 || !/^https?:\/\//i.test(url))) {
+    throw new Error('Batch requires 1 to 100 HTTP(S) URLs under 2048 characters');
+  }
   if (batchProcessingActive) {
     throw new Error('Batch processing already active');
   }

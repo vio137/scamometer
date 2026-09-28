@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Scamometer — AI Phishing & Scam Detector",
-  "version": "4.0.0",
-  "description": "Best-in-class AI-powered phishing & scam detector with dual AI pipelines, concurrent analysis, history tracking, whitelist/blacklist, export features, and beautiful UI. Built by Arnab Mandal.",
+  "version": "4.1.0",
+  "description": "Analyze websites for phishing and scam signals using optional AI providers, DNS and RDAP, with user-controlled scanning and local reports.",
   "author": "Arnab Mandal",
-  "homepage_url": "https://arnabmandal.com",
+  "homepage_url": "https://github.com/vio137/scamometer",
   "action": {
     "default_title": "Scamometer",
     "default_popup": "html/popup.html",
@@ -42,12 +42,14 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["js/content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "js/content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
-  "options_page": "html/options.html",
-  "author": "Arnab Mandal (hello@arnabmandal.com)",
-  "homepage_url": "https://arnabmandal.com"
+  "options_page": "html/options.html"
 }

@@ -523,11 +523,11 @@ document.getElementById('saveWebhook').addEventListener('click', async () => {
   const webhookAuth = document.getElementById('webhookAuth').value.trim();
   
   // Validate URL if enabled
-  if (webhookEnabled && webhookUrl) {
+  if (webhookEnabled) {
     try {
-      new URL(webhookUrl);
+      if (new URL(webhookUrl).protocol !== "https:") throw new Error("HTTPS required");
     } catch (e) {
-      showWebhookMessage('Invalid webhook URL', true);
+      showWebhookMessage('A valid HTTPS webhook URL is required', true);
       return;
     }
   }
@@ -546,9 +546,9 @@ document.getElementById('testWebhook').addEventListener('click', async () => {
   }
   
   try {
-    new URL(webhookUrl);
+    if (new URL(webhookUrl).protocol !== "https:") throw new Error("HTTPS required");
   } catch (e) {
-    showWebhookMessage('Invalid webhook URL', true);
+    showWebhookMessage('A valid HTTPS webhook URL is required', true);
     return;
   }
   

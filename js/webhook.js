@@ -15,6 +15,10 @@
  * @param {Object} results - Batch results object
  * @returns {Promise<boolean>} - Success status
  */
+function isHttpsWebhook(value) {
+  try { return new URL(value).protocol === 'https:'; } catch { return false; }
+}
+
 export async function sendWebhookNotification(results) {
   const { webhookUrl, webhookEnabled, webhookAuth } = await chrome.storage.local.get({
     webhookUrl: null,
@@ -22,7 +26,7 @@ export async function sendWebhookNotification(results) {
     webhookAuth: null
   });
   
-  if (!webhookEnabled || !webhookUrl) {
+  if (!webhookEnabled || !webhookUrl || !isHttpsWebhook(webhookUrl)) {
     console.log('Webhook not configured or disabled');
     return false;
   }
@@ -40,7 +44,7 @@ export async function sendWebhookNotification(results) {
       results: results.results.map(r => ({
         url: r.url,
         status: r.status,
-        score: r.result?.ai?.scamometer || null,
+        score: r.result?.ai?.scamometer ?? null,
         verdict: r.result?.ai?.verdict || null,
         reason: r.result?.ai?.reason || null,
         error: r.error || null,
@@ -83,6 +87,7 @@ export async function sendWebhookNotification(results) {
  * @returns {Promise<Object>} - Test result
  */
 export async function testWebhook(url, auth = null) {
+  if (!isHttpsWebhook(url)) return { ok: false, error: "HTTPS webhook URL required" };
   try {
     const headers = {
       'Content-Type': 'application/json'
